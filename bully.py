@@ -22,16 +22,16 @@ class Bully:
 
     def heart_beats(self, proc=None):
         if proc == 'coor':
-            while True:
+            while int(self.coor_id) == int(self.id):
                 self.heart_socket.send_string('alive {} {} {}'.format(self.proc_ip, self.proc_port, self.id))
                 time.sleep(1)
         else:
             while True:
                 try:
                     coor_heart_beat = self.heart_socket2.recv_string()
+                    req = parse.parse('alive {} {} {}', coor_heart_beat)
                     print(coor_heart_beat)
-                    if self.coor_id == -1:
-                        req = parse.parse('alive {} {} {}', coor_heart_beat)
+                    if int(req[2]) > self.id:
                         self.update_coor(str(req[0]), str(req[1]), int(req[2]))
                 except:
                     if self.coor_id != self.id:
@@ -78,11 +78,9 @@ class Bully:
         while True:
             if self.coor_id == -1:
                 self.socket2.send_string('election')
-                ok = True
                 try:
                     req = self.socket2.recv_string()
                 except:
-                    ok = False
                     print('I am the coordinator')
                     self.am_coordinator = True
                     self.update_coor(self.proc_ip, self.proc_port, self.id)
