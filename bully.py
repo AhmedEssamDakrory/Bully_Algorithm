@@ -10,13 +10,14 @@ class Bully:
         input = conf_file.readlines()
         n = int(input[0])
         self.processes = []
+        self.maxId = 0 
         for i in range(1,n+1):
             line = parse.parse('{} {} {} {}', input[i])
+            self.maxId = max(self.maxId, int(line[3]))
             self.processes.append({'ip': line[0], 'port': [line[1], line[2]], 'id': int(line[3])})
         self.proc_ip = proc_ip
         self.proc_port = proc_port
         self.id = id
-        self.am_coordinator = False
         self.coor_id = -1
         self.proc_port2 = proc_port2
 
@@ -30,8 +31,8 @@ class Bully:
                 try:
                     coor_heart_beat = self.heart_socket2.recv_string()
                     req = parse.parse('alive {} {} {}', coor_heart_beat)
-                    print(coor_heart_beat)
                     if int(req[2]) > self.id:
+                        print("coordinator  {}".format(coor_heart_beat))
                         self.update_coor(str(req[0]), str(req[1]), int(req[2]))
                 except:
                     if self.coor_id != self.id:
@@ -63,7 +64,7 @@ class Bully:
             if int(p['id']) > int(self.id):
                 self.socket2.connect('tcp://{}:{}'.format(p['ip'], p['port'][1]))
         # so that last process does not block on send...
-        self.socket2.connect('tcp://{}:{}'.format(p['ip'], 55555))
+        #self.socket2.connect('tcp://{}:{}'.format(p['ip'], 55555))
 
     def disconnect(self):
         for p in self.processes:
@@ -73,20 +74,25 @@ class Bully:
         self.coor_ip = ip
         self.coor_port = port
         self.coor_id = id
+    
+    def declare_am_coordinator(self):
+        print('I am the coordinator')
+        self.update_coor(self.proc_ip, self.proc_port, self.id)
+        heart_beats_thread = threading.Thread(target=self.heart_beats, args=['coor'])
+        heart_beats_thread.start()
 
     def run_client(self):
         while True:
             if self.coor_id == -1:
-                self.socket2.send_string('election')
                 try:
-                    req = self.socket2.recv_string()
+                    if self.id == self.maxId:
+                        self.declare_am_coordinator()
+                    else:
+                        self.socket2.send_string('election')
+                        req = self.socket2.recv_string()
                 except:
-                    print('I am the coordinator')
-                    self.am_coordinator = True
-                    self.update_coor(self.proc_ip, self.proc_port, self.id)
-
-                    heart_beats_thread = threading.Thread(target=self.heart_beats, args=['coor'])
-                    heart_beats_thread.start()
+                    self.declare_am_coordinator()
+                    
             time.sleep(1)
 
     def run_server(self):
